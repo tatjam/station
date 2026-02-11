@@ -15,7 +15,10 @@ axum = "0.8.8"
 tokio = { version = "1.49.0", features = ["full"] }
 tower = "0.5.3"
 tower-http = { version = "0.6.8", features = ["trace"] }
-tower-sessions = "0.15.0"
+
+# NOTE: 0.14.0 used for sqlx store 0.15.0
+tower-sessions = "0.14.0"
+tower-sessions-sqlx-store = { version = "0.15.0", features = ["postgres"] }
 
 dotenvy = "0.15"
 
@@ -27,3 +30,5 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 maud = "0.27.0"
 
 serde = "1.0.228"
+
+sqlx = { version = "0.8.6", features = ["postgres", "runtime-tokio-native-tls"] }

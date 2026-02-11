@@ -13,7 +13,11 @@ use axum::{
 use dotenvy;
 use maud::html;
 use serde::Deserialize;
-use tower_sessions::{MemoryStore, Session, SessionManagerLayer};
+use sqlx::{Pool, Postgres, postgres::PgPoolOptions};
+use tower_sessions::{
+    ExpiredDeletion, Expiry, Session, SessionManagerLayer, cookie::time::Duration,
+};
+use tower_sessions_sqlx_store::PostgresStore;
 use tracing::info;
 
 const LOGIN_HTML: &str = include_str!("../res/login.html");
@@ -24,6 +28,7 @@ const AUTH_SESSION_NAME: &'static str = "auth";
 #[derive(Clone)]
 struct AppState {
     password_hash: String,
+    pool: Pool<Postgres>,
 }
 
 #[derive(Deserialize)]
@@ -47,9 +52,28 @@ async fn auth_guard(session: Session, request: Request, next: Next) -> impl Into
 
 #[tokio::main]
 async fn main() {
-    tracing_subscriber::fmt::init();
+    if dotenvy::var("LOG_PLAIN").is_ok() {
+        tracing_subscriber::fmt().with_ansi(false).init();
+    } else {
+        tracing_subscriber::fmt().with_ansi(true).init();
+    }
 
     dotenvy::dotenv().unwrap();
+
+    let login_str = format!(
+        "postgres://{}:{}@{}/{}",
+        dotenvy::var("DB_USER").unwrap(),
+        dotenvy::var("DB_PASSWORD").unwrap(),
+        dotenvy::var("DB_HOST").unwrap(),
+        dotenvy::var("DB_NAME").unwrap()
+    );
+
+    let pool = PgPoolOptions::new()
+        .max_connections(5)
+        .connect(login_str.as_str())
+        .await
+        .expect("Failed to connect to Postgres");
+
     let allow_insecure = match dotenvy::var("ALLOW_UNSECURE_COOKIE")
         .unwrap_or(String::from("false"))
         .as_str()
@@ -58,15 +82,32 @@ async fn main() {
         _ => false,
     };
 
-    let session_store = MemoryStore::default();
+    let session_store = PostgresStore::new(pool.clone());
+
+    session_store
+        .migrate()
+        .await
+        .expect("Failed to migrate session store");
+
+    tokio::task::spawn(
+        session_store
+            .clone()
+            .continuously_delete_expired(tokio::time::Duration::from_secs(120)),
+    );
+
     let session_layer = SessionManagerLayer::new(session_store)
         .with_secure(allow_insecure)
+        .with_same_site(tower_sessions::cookie::SameSite::Lax)
+        .with_expiry(Expiry::OnInactivity(Duration::seconds(60 * 60 * 24 * 7)))
         .with_name("station_session");
 
     let host = dotenvy::var("HOST").unwrap();
     let password_hash = dotenvy::var("LOGIN_PASSWORD").unwrap();
 
-    let shared_state = AppState { password_hash };
+    let shared_state = AppState {
+        pool,
+        password_hash,
+    };
 
     let open_routes = Router::new()
         .route("/", get(home_page))
