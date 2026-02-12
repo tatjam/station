@@ -1,8 +1,8 @@
 // Copyright (C) 2026 tatjam
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-mod api;
 mod auth;
+mod inventory;
 mod state;
 
 use axum::{
@@ -45,6 +45,7 @@ async fn main() {
     let auth_routes = Router::new()
         .route("/inventory", get(|| html_page(INVENTORY_HTML)))
         .route("/logout", post(auth::logout_handler))
+        .route("/api/inventory/search", get(inventory::search_handler))
         .route_layer(middleware::from_fn(auth::auth_guard));
 
     let session_layer = shared_state.setup_session_store().await;
