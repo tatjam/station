@@ -21,6 +21,7 @@ use tower_sessions_sqlx_store::PostgresStore;
 use tracing::info;
 
 const LOGIN_HTML: &str = include_str!("../res/login.html");
+const INVENTORY_HTML: &str = include_str!("../res/inventory.html");
 const STYLE_CSS: &str = include_str!("../res/style.css");
 
 const AUTH_SESSION_NAME: &'static str = "auth";
@@ -64,6 +65,12 @@ async fn main() {
         "postgres://{}:{}@{}/{}",
         dotenvy::var("DB_USER").unwrap(),
         dotenvy::var("DB_PASSWORD").unwrap(),
+        dotenvy::var("DB_HOST").unwrap(),
+        dotenvy::var("DB_NAME").unwrap()
+    );
+
+    info!(
+        "Connecting to DB postgres://xxx:xxx@{}/{}",
         dotenvy::var("DB_HOST").unwrap(),
         dotenvy::var("DB_NAME").unwrap()
     );
@@ -147,7 +154,7 @@ async fn home_page(session: Session) -> impl IntoResponse {
 }
 
 async fn inventory_page(session: Session) -> impl IntoResponse {
-    Html("Inventory")
+    Html(INVENTORY_HTML)
 }
 
 async fn login_page() -> impl IntoResponse {
@@ -182,7 +189,9 @@ async fn login_handler(
 
 async fn logout_handler(session: Session) -> impl IntoResponse {
     session.delete().await.ok();
-    Redirect::to("/login")
+    let mut headers = axum::http::HeaderMap::new();
+    headers.insert("HX-Redirect", "/login".parse().unwrap());
+    (headers, "").into_response()
 }
 
 async fn style_css_handler() -> impl IntoResponse {

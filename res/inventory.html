@@ -5,9 +5,66 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Tatjam's station</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
+    <link rel="stylesheet" href="style.css">
     <script src="https://cdn.jsdelivr.net/npm/htmx.org@2.0.8/dist/htmx.min.js"></script>
 </head>
+
 <body>
-    You will be redirected soon...
+<main class="container">
+    <nav>
+        <ul>
+            <li><a href="#"><strong>Inventory</strong></a></li>
+        </ul>
+        <ul>
+        <li><a hx-post="/logout">Logout</a></li>
+    </ul>
+    </nav>
+
+    <article>
+        <form
+            hx-get="/api/inventory/search"
+            hx-trigger="change, keyup changed delay:500ms from:input[type='search']"
+            hx-target="#results"
+            hx-indicator="#loading">
+
+            <div class="grid">
+                <select name="category" aria-label="Select category...">
+                    <option>All Categories</option>
+                    <div 
+                        hx-get="/api/categories"
+                        hx-trigger="load"
+                        hx-target="this"
+                        hx-swap="outerHTML">
+                    </div>
+                </select>
+                <select name="footprint" aria-label="Select footprint...">
+                    <option>All Footprints</option>
+                    <div 
+                        hx-get="/api/footprint"
+                        hx-trigger="load"
+                        hx-target="this"
+                        hx-swap="outerHTML">
+                    </div>
+                </select>
+                <input type="text" name="min-val" placeholder="Min Value" aria-label="Min Value">
+                <input type="text" name="min-val" placeholder="Max Value" aria-label="Max Value">
+            </div>
+            <div class="grid">
+                <div role="search">
+                  <input name="search" type="search" placeholder="Fuzzy Search" />
+                  <input type="submit" value="Search" />
+                </div>
+            </div>
+        </form>
+
+        <div id="loading" class="htmx-indicator">
+          <article aria-busy="true">Loading results...</article>
+        </div>
+
+        <div id="results">
+        </div>
+
+    </article>
+</main>
 </body>
 </html>
