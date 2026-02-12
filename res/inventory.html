@@ -23,7 +23,7 @@
     <article>
         <form
             hx-get="/api/inventory/search"
-            hx-trigger="change, keyup changed delay:500ms from:input[type='search']"
+            hx-trigger="change, keyup changed delay:500ms from:input[type='search'], keyup changed delay:500ms from:input[type='text']"
             hx-target="#results"
             hx-indicator="#loading">
 
