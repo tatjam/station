@@ -22,10 +22,12 @@
 
     <article>
         <form
+            id="search-form"
             hx-get="/api/inventory/search"
-            hx-trigger="change, keyup changed delay:500ms from:input[type='search'], keyup changed delay:500ms from:input[type='text']"
+            hx-trigger="load, change, keyup changed delay:500ms from:input[type='search'], keyup changed delay:500ms from:input[type='text']"
             hx-target="#results"
-            hx-indicator="#loading">
+            hx-indicator="#loading"
+            >
 
             <div class="grid">
                 <select name="category" aria-label="Select category...">
@@ -46,12 +48,11 @@
                         hx-swap="outerHTML">
                     </div>
                 </select>
-                <input type="text" name="min_val" placeholder="Min Value" aria-label="Min Value">
-                <input type="text" name="max_val" placeholder="Max Value" aria-label="Max Value">
+                <input type="text" name="min_val" placeholder="Min Value" aria-label="Min Value"> <input type="text" name="max_val" placeholder="Max Value" aria-label="Max Value">
                 <label>
                 <label class="checkbox-label">
                     <input type="checkbox" name="in_stock" checked />
-                    In Stock
+                    Only in stock
                 </label>
             </div>
             <div class="grid">
@@ -59,16 +60,28 @@
                   <input name="search" type="text" placeholder="Fuzzy Search" />
                 </div>
             </div>
+            <input type="hidden" name="sort" value="">
         </form>
 
         <div id="loading" class="htmx-indicator">
           <article aria-busy="true">Loading results...</article>
         </div>
 
-        <div id="results">
+        <div class="overflow-auto">
+            <table class="striped" id="results">
+            </table>
         </div>
 
     </article>
+
+    <script>
+        function sortBy(field) {
+          document.querySelector('[name="sort"]').value = field;
+          htmx.trigger('#search-form', 'change');
+        }
+
+        sortBy('mpn');
+    </script>
 </main>
 </body>
 </html>

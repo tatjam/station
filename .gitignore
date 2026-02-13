@@ -1,3 +1,4 @@
 /target
 .env
 ./deploy.sh
+inventory_backup*.sql
