@@ -72,4 +72,12 @@ article>footer {
     /* Original: var(--pico-border-radius) */
 }
 
+label.checkbox-label {
+    display: flex;
+    align-items: center;
+    margin: var(--pico-spacing) 0;
+}
 
+a[hx-post], a[hx-get] {
+    cursor: pointer;
+}
