@@ -31,6 +31,6 @@ maud = "0.27.0"
 
 serde = "1.0.228"
 
-sqlx = { version = "0.8.6", features = ["postgres", "runtime-tokio-native-tls"] }
+sqlx = { version = "0.8.6", features = ["postgres", "runtime-tokio-rustls"] }
 
 chrono = "0.4.43"
