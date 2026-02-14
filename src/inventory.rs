@@ -526,6 +526,7 @@ pub fn html_table_header(sort: &String) -> Markup {
             (html_table_header_row("mpn", "MPN", sort))
             (html_table_header_row("category", "Category", sort))
             (html_table_header_row("footprint", "Footprint", sort))
+            (html_table_header_row("comments", "Comments", sort))
             (html_table_header_row("value", "Value", sort))
             (html_table_header_row("quantity", "Qty.", sort))
             th style="font-weight: normal" {
@@ -555,6 +556,13 @@ pub fn html_table_row(result: &InventoryItem) -> Markup {
                 @if let Some(footprint) = &result.footprint {
                     (footprint)
                 } @else {
+                    "—"
+                }
+            }
+            td {
+                @if let Some(comments) = &result.comments {
+                    (comments)
+                } @ else {
                     "—"
                 }
             }
