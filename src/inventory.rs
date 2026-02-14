@@ -30,14 +30,14 @@ pub struct SearchForm {
 
 #[derive(Debug, sqlx::FromRow)]
 pub struct InventoryItem {
-    id: i64,
+    id: i32,
     mpn: Option<String>,
     category: String,
     footprint: Option<String>,
     value: Option<f32>,
     location: Option<String>,
-    quantity: Option<i64>,
-    staged: Option<i64>,
+    quantity: Option<i32>,
+    staged: Option<i32>,
     comments: Option<String>,
 }
 
@@ -337,7 +337,7 @@ pub async fn search_handler(
     Html(response)
 }
 
-async fn update_stage(id: i64, number: i64, db_conn: &mut PoolConnection<Postgres>) -> Option<i64> {
+async fn update_stage(id: i32, number: i32, db_conn: &mut PoolConnection<Postgres>) -> Option<i32> {
     let mut query = QueryBuilder::new("UPDATE stock SET staged = LEAST(COALESCE(staged, 0) + ");
     query.push_bind(number);
     query.push(", quantity)");
@@ -349,7 +349,7 @@ async fn update_stage(id: i64, number: i64, db_conn: &mut PoolConnection<Postgre
     query.push(" >= 0");
     query.push(" RETURNING staged");
     match query
-        .build_query_scalar::<i64>()
+        .build_query_scalar::<i32>()
         .fetch_optional(db_conn.as_mut())
         .await
     {
@@ -388,7 +388,7 @@ pub async fn confirm_stage_handler(State(state): State<AppState>) -> impl IntoRe
 
 pub async fn staging_handler(
     State(state): State<AppState>,
-    Path(id): Path<i64>,
+    Path(id): Path<i32>,
 ) -> impl IntoResponse {
     info!("Staging component {}", id);
 
@@ -404,7 +404,7 @@ pub async fn staging_handler(
 
 pub async fn unstaging_handler(
     State(state): State<AppState>,
-    Path(id): Path<i64>,
+    Path(id): Path<i32>,
 ) -> impl IntoResponse {
     info!("Unstaging component {}", id);
 
@@ -483,7 +483,7 @@ pub async fn download_backup_handler() -> impl IntoResponse {
     }
 }
 
-fn html_stage(id: i64, number: Option<i64>) -> Markup {
+fn html_stage(id: i32, number: Option<i32>) -> Markup {
     html!(
         span id={"staged-" (id)} style="color: red;" {
             @if let Some(staged) = number {
