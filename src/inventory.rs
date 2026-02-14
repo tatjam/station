@@ -2,7 +2,7 @@ use std::fmt::Display;
 
 use axum::{
     Form,
-    extract::State,
+    extract::{Path, State},
     response::{Html, IntoResponse},
 };
 use maud::{Markup, html};
@@ -21,6 +21,7 @@ pub struct SearchForm {
     min_val: String,
     max_val: String,
     in_stock: Option<String>,
+    in_stage: Option<String>,
     search: String,
     sort: String,
     dir: String,
@@ -35,6 +36,7 @@ pub struct InventoryItem {
     value: Option<f32>,
     location: Option<String>,
     quantity: Option<i64>,
+    staged: Option<i64>,
     comments: Option<String>,
 }
 
@@ -103,6 +105,10 @@ async fn query_inventory(
 
     if search.in_stock.is_some() {
         query.push(" AND quantity > 0");
+    }
+
+    if search.in_stage.is_some() {
+        query.push(" AND staged > 0");
     }
 
     if !search.min_val.is_empty() {
@@ -330,6 +336,76 @@ pub async fn search_handler(
     Html(response)
 }
 
+async fn update_stage(id: i64, number: i64, db_conn: &mut PoolConnection<Postgres>) -> Option<i64> {
+    let mut query = QueryBuilder::new("UPDATE stock SET staged = LEAST(COALESCE(staged, 0) + ");
+    query.push_bind(number);
+    query.push(", quantity)");
+    query.push(" WHERE part_id = ");
+    query.push_bind(id);
+    query.push(" AND quantity IS NOT NULL");
+    query.push(" AND COALESCE(staged, 0) + ");
+    query.push_bind(number);
+    query.push(" >= 0");
+    query.push(" RETURNING staged");
+    match query
+        .build_query_scalar::<i64>()
+        .fetch_optional(db_conn.as_mut())
+        .await
+    {
+        Ok(v) => v,
+        Err(e) => {
+            let _ = handle_generic_inventory_error(e);
+            None
+        }
+    }
+}
+
+pub async fn staging_handler(
+    State(state): State<AppState>,
+    Path(id): Path<i64>,
+) -> impl IntoResponse {
+    info!("Staging component {}", id);
+
+    let mut db_conn = match state.pool.acquire().await {
+        Ok(conn) => conn,
+        Err(e) => {
+            return handle_generic_inventory_error(e);
+        }
+    };
+
+    Html(html_stage(id, update_stage(id, 1, &mut db_conn).await).into_string())
+}
+
+pub async fn unstaging_handler(
+    State(state): State<AppState>,
+    Path(id): Path<i64>,
+) -> impl IntoResponse {
+    info!("Unstaging component {}", id);
+
+    let mut db_conn = match state.pool.acquire().await {
+        Ok(conn) => conn,
+        Err(e) => {
+            return handle_generic_inventory_error(e);
+        }
+    };
+
+    Html(html_stage(id, update_stage(id, -1, &mut db_conn).await).into_string())
+}
+
+fn html_stage(id: i64, number: Option<i64>) -> Markup {
+    html!(
+        span id={"staged-" (id)} style="color: red;" {
+            @if let Some(staged) = number {
+                @if staged > 0 {
+                    "(" (staged) ")"
+                } @else if staged < 0 {
+                    "( ERROR )"
+                }
+            }
+        }
+    )
+}
+
 pub fn html_table_header_row(id: &'static str, content: &'static str, sort: &String) -> Markup {
     let style_str = format!(
         "cursor: pointer; {}",
@@ -369,6 +445,9 @@ pub fn html_table_header(sort: &String) -> Markup {
 }
 
 pub fn html_table_row(result: &InventoryItem) -> Markup {
+    const STAGING_BUTTON_STYLE: &'static str =
+        "padding: 0rem; width: 1.5rem; height: 1.5rem; vertical-align: middle;";
+
     html!(
         tr {
             th scope="row" {
@@ -401,9 +480,25 @@ pub fn html_table_row(result: &InventoryItem) -> Markup {
                 } @else {
                     "—"
                 }
+                " "
+                (html_stage(result.id, result.staged))
             }
             td {
-                "TODO"
+                div style="display:inline-flex; gap: 0.5rem;" {
+                    button
+                    style=(STAGING_BUTTON_STYLE)
+                    hx-post={"/api/inventory/stage/" (result.id)}
+                    hx-target={"#staged-" (result.id)}
+                    hx-swap="outerHTML" {
+                        "+"
+                    }
+                    button style=(STAGING_BUTTON_STYLE)
+                    hx-post={"/api/inventory/unstage/" (result.id)}
+                    hx-target={"#staged-" (result.id)}
+                    hx-swap="outerHTML" {
+                        "-"
+                    }
+                }
             }
         }
     )

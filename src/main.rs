@@ -54,6 +54,14 @@ async fn main() {
             "/api/inventory/footprints",
             get(inventory::footprint_list_handler),
         )
+        .route(
+            "/api/inventory/stage/{id}",
+            post(inventory::staging_handler),
+        )
+        .route(
+            "/api/inventory/unstage/{id}",
+            post(inventory::unstaging_handler),
+        )
         .route_layer(middleware::from_fn(auth::auth_guard));
 
     let session_layer = shared_state.setup_session_store().await;

@@ -49,10 +49,13 @@
                     <option>All Footprints</option>
                 </select>
                 <input type="text" name="min_val" placeholder="Min Value" aria-label="Min Value"> <input type="text" name="max_val" placeholder="Max Value" aria-label="Max Value">
-                <label>
                 <label class="checkbox-label">
                     <input type="checkbox" name="in_stock" checked />
                     Only in stock
+                </label>
+                <label class="checkbox-label">
+                    <input type="checkbox" name="in_stage" unchecked />
+                    Only staged
                 </label>
             </div>
             <div class="grid">
@@ -63,16 +66,13 @@
             <input type="hidden" name="sort" value="">
             <input type="hidden" name="dir" value="">
         </form>
-
         <div id="loading" class="htmx-indicator">
           <article aria-busy="true">Loading results...</article>
         </div>
-
         <div class="overflow-auto">
             <table class="striped" id="results">
             </table>
         </div>
-
     </article>
 
     <script>
