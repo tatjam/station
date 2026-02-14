@@ -58,6 +58,30 @@ pub fn handle_generic_inventory_error<E: Display>(e: E) -> Html<String> {
     );
 }
 
+fn parse_multiple_value(v: &String) -> Option<f32> {
+    let number_end = v.rfind(|x: char| x.is_ascii_digit())?;
+    if number_end + 1 >= v.len() {
+        return v.parse::<f32>().ok();
+    }
+
+    assert!(number_end + 1 < v.len());
+
+    let number_part = &v[0..number_end + 1];
+    let qty_part = &v[number_end + 1..].trim();
+
+    let number = number_part.parse::<f32>().ok()?;
+    match *qty_part {
+        "p" => Some(number * 1e-12),
+        "n" => Some(number * 1e-9),
+        "u" => Some(number * 1e-6),
+        "m" => Some(number * 1e-3),
+        "k" => Some(number * 1e3),
+        "M" => Some(number * 1e6),
+        "G" => Some(number * 1e9),
+        _ => Some(number),
+    }
+}
+
 async fn query_inventory(
     search: &SearchForm,
     db_conn: &mut PoolConnection<Postgres>,
@@ -82,14 +106,14 @@ async fn query_inventory(
     }
 
     if !search.min_val.is_empty() {
-        if let Ok(min) = search.min_val.parse::<f64>() {
+        if let Some(min) = parse_multiple_value(&search.min_val) {
             query.push(" AND value >= ");
             query.push_bind(min);
         }
     }
 
     if !search.max_val.is_empty() {
-        if let Ok(max) = search.max_val.parse::<f64>() {
+        if let Some(max) = parse_multiple_value(&search.max_val) {
             query.push(" AND value <= ");
             query.push_bind(max);
         }
