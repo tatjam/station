@@ -170,6 +170,38 @@ fn format_value(category: &String, value: f32) -> String {
     format!("{}{}", value, unit)
 }
 
+fn response_filter_list(
+    filter_results: Vec<String>,
+    prev_value: &String,
+    no_filter: &'static str,
+) -> Markup {
+    let mut filter_results = filter_results;
+    // Remove the already chosen category, we insert it at the top
+    let chosen_idx = filter_results.iter().position(|x| x == prev_value);
+    let mut chosen_elem = None;
+    if let Some(idx) = chosen_idx
+        && prev_value != no_filter
+    {
+        chosen_elem = Some(filter_results.swap_remove(idx));
+    }
+
+    html! {
+        @if let Some(chosen) = chosen_elem {
+            option {
+                (chosen)
+            }
+        }
+        option {
+            (no_filter)
+        }
+        @for cat in &filter_results {
+            option {
+                (cat)
+            }
+        }
+    }
+}
+
 pub async fn category_list_handler(
     State(state): State<AppState>,
     Form(fandc): Form<FootprintAndCategoryForm>,
@@ -184,7 +216,9 @@ pub async fn category_list_handler(
     };
 
     let mut query = QueryBuilder::new("SELECT DISTINCT category FROM inventory");
-    if fandc.footprint != "All Footprints" {
+    if fandc.footprint == NO_FOOTPRINT_STR {
+        query.push(" WHERE footprint IS NULL");
+    } else if fandc.footprint != ALL_FOOTPRINTS_STR {
         query.push(" WHERE footprint = ");
         query.push_bind(fandc.footprint);
     }
@@ -200,19 +234,7 @@ pub async fn category_list_handler(
         }
     };
 
-    Html(
-        html! {
-            option {
-                "All Categories"
-            }
-            @for cat in &results {
-                option {
-                    (cat)
-                }
-            }
-        }
-        .into_string(),
-    )
+    Html(response_filter_list(results, &fandc.category, ALL_CATEGORIES_STR).into_string())
 }
 
 pub async fn footprint_list_handler(
@@ -228,14 +250,17 @@ pub async fn footprint_list_handler(
         }
     };
 
-    let mut query = QueryBuilder::new("SELECT DISTINCT footprint FROM inventory");
+    let mut query = QueryBuilder::new("SELECT DISTINCT COALESCE(footprint, '");
+    query.push(NO_FOOTPRINT_STR);
+    query.push("') FROM inventory");
+
     if fandc.category != "All Categories" {
         query.push(" WHERE category = ");
         query.push_bind(fandc.category);
     }
 
     let results = match query
-        .build_query_scalar::<Option<String>>()
+        .build_query_scalar::<String>()
         .fetch_all(db_conn.as_mut())
         .await
     {
@@ -245,21 +270,7 @@ pub async fn footprint_list_handler(
         }
     };
 
-    Html(
-        html! {
-            option {
-                "All Footprints"
-            }
-            @for maybe_fpt in &results {
-                @if let Some(fpt) = maybe_fpt {
-                    option {
-                        (fpt)
-                    }
-                }
-            }
-        }
-        .into_string(),
-    )
+    Html(response_filter_list(results, &fandc.footprint, ALL_FOOTPRINTS_STR).into_string())
 }
 
 pub async fn search_handler(
