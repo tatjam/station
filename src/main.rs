@@ -66,6 +66,10 @@ async fn main() {
             "/api/inventory/confirm-stage",
             post(inventory::confirm_stage_handler),
         )
+        .route(
+            "/api/inventory/download-backup",
+            get(inventory::download_backup_handler),
+        )
         .route_layer(middleware::from_fn(auth::auth_guard));
 
     let session_layer = shared_state.setup_session_store().await;

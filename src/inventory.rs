@@ -1,9 +1,9 @@
-use std::fmt::Display;
+use std::{fmt::Display, str::from_utf8};
 
 use axum::{
     Form,
     extract::{Path, State},
-    http::HeaderMap,
+    http::{HeaderMap, header},
     response::{Html, IntoResponse},
 };
 use maud::{Markup, html};
@@ -416,6 +416,71 @@ pub async fn unstaging_handler(
     };
 
     Html(html_stage(id, update_stage(id, -1, &mut db_conn).await).into_string())
+}
+
+pub async fn download_backup_handler() -> impl IntoResponse {
+    info!("Generating database backup");
+    let output = tokio::process::Command::new("pg_dump")
+        .env("PGPASSWORD", dotenvy::var("DB_PASSWORD").unwrap().as_str())
+        .args(&[
+            "-h",
+            dotenvy::var("DB_HOST").unwrap().as_str(),
+            "-U",
+            dotenvy::var("DB_USER").unwrap().as_str(),
+            "-d",
+            dotenvy::var("DB_NAME").unwrap().as_str(),
+            "-p",
+            dotenvy::var("DB_PORT")
+                .unwrap_or(String::from("5432"))
+                .as_str(),
+            "-t",
+            "parts",
+            "-t",
+            "stock",
+            "-t",
+            "locations",
+            "-t",
+            "categories",
+            "-t",
+            "footprints",
+            "--clean",
+            "--if-exists",
+            "--inserts",
+        ])
+        .output()
+        .await;
+
+    let mut headers = HeaderMap::new();
+    match output {
+        Ok(out) if out.status.success() => {
+            let sql = String::from_utf8_lossy(&out.stdout);
+            let filename = format!("inventory_{}.sql", chrono::Local::now().format("%Y%m%d"));
+            headers.insert(header::CONTENT_TYPE, "application/sql".parse().unwrap());
+            headers.insert(
+                header::CONTENT_DISPOSITION,
+                format!("attachment; filename=\"{}\"", filename)
+                    .parse()
+                    .unwrap(),
+            );
+
+            (headers, sql.to_string())
+        }
+        Ok(out) => {
+            error!(
+                "Backup failed on pg_dump: {}, stderr: {}",
+                out.status,
+                from_utf8(out.stderr.as_slice()).unwrap_or("(Unable to parse UTF-8)")
+            );
+
+            headers.insert(header::CONTENT_TYPE, "text/plain".parse().unwrap());
+            (headers, "Backup failed".to_string())
+        }
+        Err(e) => {
+            error!("Backup failed: {}", e);
+            headers.insert(header::CONTENT_TYPE, "text/plain".parse().unwrap());
+            (headers, "Backup failed".to_string())
+        }
+    }
 }
 
 fn html_stage(id: i64, number: Option<i64>) -> Markup {

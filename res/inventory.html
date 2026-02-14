@@ -72,11 +72,9 @@
             onclick="toggleModal(event)">
                 Commit Stage
             </button>
-            <button
-            data-target="backup-modal"
-            onclick="toggleModal(event)">
-                Backup
-            </button>
+            <a href="/api/inventory/download-backup" download style="display: contents;">
+                <button>Download Backup</button>
+            </a>
             <button
             data-target="manage-modal"
             onclick="toggleModal(event)">
@@ -123,26 +121,6 @@
                     Commit
                 </button>
             </footer>
-        </article>
-    </dialog>
-
-    <dialog id="backup-modal" closed>
-        <article>
-            <header>
-                <button
-                aria-label="Close"
-                rel="prev"
-                data-target="backup-modal"
-                onclick="toggleModal(event)">
-                </button>
-                <p>
-                    <strong>Backup</strong>
-                </p>
-            </header>
-            <p>
-                <button>Download backup</button>
-                <button>Upload backup</button>
-            </p>
         </article>
     </dialog>
 
