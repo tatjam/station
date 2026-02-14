@@ -21,9 +21,6 @@ CSS taken from: https://github.com/picocss/pico/discussions/482#discussioncommen
   main.container {
     max-width: 95%;
   }
-  table {
-      font-size: 0.8em
-  }
 }
 
 @media (min-width: 576px) {

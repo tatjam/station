@@ -46,6 +46,14 @@ async fn main() {
         .route("/inventory", get(|| html_page(INVENTORY_HTML)))
         .route("/logout", post(auth::logout_handler))
         .route("/api/inventory/search", get(inventory::search_handler))
+        .route(
+            "/api/inventory/categories",
+            get(inventory::category_list_handler),
+        )
+        .route(
+            "/api/inventory/footprints",
+            get(inventory::footprint_list_handler),
+        )
         .route_layer(middleware::from_fn(auth::auth_guard));
 
     let session_layer = shared_state.setup_session_store().await;

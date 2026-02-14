@@ -30,23 +30,23 @@
             >
 
             <div class="grid">
-                <select name="category" aria-label="Select category...">
+                <select name="category" aria-label="Select category..."
+                hx-get="/api/inventory/categories"
+                hx-trigger="load, change from:[name='footprint']"
+                hx-target="this"
+                hx-include="[name='footprint']"
+                hx-swap="innerHTML">
+                >
                     <option>All Categories</option>
-                    <div 
-                        hx-get="/api/categories"
-                        hx-trigger="load"
-                        hx-target="this"
-                        hx-swap="outerHTML">
-                    </div>
                 </select>
-                <select name="footprint" aria-label="Select footprint...">
+                <select name="footprint" aria-label="Select footprint..."
+                hx-get="/api/inventory/footprints"
+                hx-trigger="load, change from:[name='category']"
+                hx-target="this"
+                hx-include="[name='category']"
+                hx-swap="innerHTML">
+                >
                     <option>All Footprints</option>
-                    <div 
-                        hx-get="/api/footprint"
-                        hx-trigger="load"
-                        hx-target="this"
-                        hx-swap="outerHTML">
-                    </div>
                 </select>
                 <input type="text" name="min_val" placeholder="Min Value" aria-label="Min Value"> <input type="text" name="max_val" placeholder="Max Value" aria-label="Max Value">
                 <label>
@@ -61,6 +61,7 @@
                 </div>
             </div>
             <input type="hidden" name="sort" value="">
+            <input type="hidden" name="dir" value="">
         </form>
 
         <div id="loading" class="htmx-indicator">
@@ -76,8 +77,17 @@
 
     <script>
         function sortBy(field) {
-          document.querySelector('[name="sort"]').value = field;
-          htmx.trigger('#search-form', 'change');
+            const sortInput = document.querySelector('[name="sort"]');
+            const dirInput = document.querySelector('[name="dir"]');
+
+            if (sortInput.value === field) {
+                dirInput.value = dirInput.value === 'asc' ? 'desc' : 'asc';
+            } else {
+                sortInput.value = field;
+                dirInput.value = 'asc';
+            }
+
+            htmx.trigger('#search-form', 'change');
         }
 
         sortBy('mpn');
