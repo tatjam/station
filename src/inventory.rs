@@ -3,6 +3,7 @@ use std::fmt::Display;
 use axum::{
     Form,
     extract::{Path, State},
+    http::HeaderMap,
     response::{Html, IntoResponse},
 };
 use maud::{Markup, html};
@@ -357,6 +358,31 @@ async fn update_stage(id: i64, number: i64, db_conn: &mut PoolConnection<Postgre
             let _ = handle_generic_inventory_error(e);
             None
         }
+    }
+}
+
+pub async fn confirm_stage_handler(State(state): State<AppState>) -> impl IntoResponse {
+    info!("Confirming stage");
+
+    let mut db_conn = match state.pool.acquire().await {
+        Ok(conn) => conn,
+        Err(e) => {
+            return (HeaderMap::new(), handle_generic_inventory_error(e));
+        }
+    };
+
+    let mut query = QueryBuilder::new("UPDATE stock SET");
+    query.push(" quantity = quantity - COALESCE(staged, 0),");
+    query.push(" staged = NULL");
+    query.push(" WHERE staged <= quantity");
+
+    match query.build().execute(db_conn.as_mut()).await {
+        Ok(_) => {
+            let mut headers = HeaderMap::new();
+            headers.insert("HX-Trigger", "inventoryUpdated".parse().unwrap());
+            (headers, Html(String::from("OK")))
+        }
+        Err(e) => (HeaderMap::new(), handle_generic_inventory_error(e)),
     }
 }
 

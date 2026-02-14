@@ -24,7 +24,7 @@
         <form
             id="search-form"
             hx-get="/api/inventory/search"
-            hx-trigger="load, change, keyup changed delay:500ms from:input[type='search'], keyup changed delay:500ms from:input[type='text']"
+            hx-trigger="load, change, keyup changed delay:500ms from:input[type='search'], keyup changed delay:500ms from:input[type='text'], inventoryUpdated from:body"
             hx-target="#results"
             hx-indicator="#loading"
             >
@@ -66,6 +66,23 @@
             <input type="hidden" name="sort" value="">
             <input type="hidden" name="dir" value="">
         </form>
+        <div class="grid">
+            <button
+            data-target="confirm-stage-modal"
+            onclick="toggleModal(event)">
+                Commit Stage
+            </button>
+            <button
+            data-target="backup-modal"
+            onclick="toggleModal(event)">
+                Backup
+            </button>
+            <button
+            data-target="manage-modal"
+            onclick="toggleModal(event)">
+                Manage Parts
+            </button>
+        </div>
         <div id="loading" class="htmx-indicator">
           <article aria-busy="true">Loading results...</article>
         </div>
@@ -74,6 +91,79 @@
             </table>
         </div>
     </article>
+
+    <dialog id="confirm-stage-modal" closed>
+        <article>
+            <header>
+                <button
+                aria-label="Close"
+                rel="prev"
+                data-target="confirm-stage-modal"
+                onclick="toggleModal(event)">
+                </button>
+                <p>
+                    <strong>Confirm commit stage</strong>
+                </p>
+            </header>
+            <p>
+                Are you sure you want to commit to inventory?
+            </p>
+            <footer>
+                <button
+                class="secondary"
+                data-target="confirm-stage-modal"
+                onclick="toggleModal(event)">
+                    Cancel
+                </button>
+                <button
+                hx-post="/api/inventory/confirm-stage"
+                data-target="confirm-stage-modal"
+                onclick="toggleModal(event)">
+                >
+                    Commit
+                </button>
+            </footer>
+        </article>
+    </dialog>
+
+    <dialog id="backup-modal" closed>
+        <article>
+            <header>
+                <button
+                aria-label="Close"
+                rel="prev"
+                data-target="backup-modal"
+                onclick="toggleModal(event)">
+                </button>
+                <p>
+                    <strong>Backup</strong>
+                </p>
+            </header>
+            <p>
+                <button>Download backup</button>
+                <button>Upload backup</button>
+            </p>
+        </article>
+    </dialog>
+
+    <dialog id="manage-modal" closed>
+        <article>
+            <header>
+                <button
+                aria-label="Close"
+                rel="prev"
+                data-target="manage-modal"
+                onclick="toggleModal(event)">
+                </button>
+                <p>
+                    <strong>Manage Parts</strong>
+                </p>
+            </header>
+            <p>
+                TODO :)
+            </p>
+        </article>
+    </dialog>
 
     <script>
         function sortBy(field) {
@@ -91,6 +181,14 @@
         }
 
         sortBy('mpn');
+
+        const toggleModal = (ev) => {
+            event.preventDefault();
+            const modal = document.getElementById(event.currentTarget.dataset.target);
+            if (!modal) return;
+            modal && (modal.open ? modal.close() : modal.showModal());
+        };
+
     </script>
 </main>
 </body>

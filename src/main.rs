@@ -62,6 +62,10 @@ async fn main() {
             "/api/inventory/unstage/{id}",
             post(inventory::unstaging_handler),
         )
+        .route(
+            "/api/inventory/confirm-stage",
+            post(inventory::confirm_stage_handler),
+        )
         .route_layer(middleware::from_fn(auth::auth_guard));
 
     let session_layer = shared_state.setup_session_store().await;
