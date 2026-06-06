@@ -34,4 +34,6 @@ serde = "1.0.228"
 sqlx = { version = "0.8.6", features = ["postgres", "runtime-tokio-rustls", "chrono"] }
 
 chrono = "0.4.43"
-lettre = {version="0.11.22", features=["smtp-transport", "native-tls", "hostname", "builder"]}
+
+# Note: we use system certificates for SMTP, change rustls-platform-verifier to webpki-roots to bundle with binary
+lettre = {version="0.11.22", default-features=false, features=["smtp-transport", "rustls", "ring", "rustls-platform-verifier", "hostname", "builder"]}
