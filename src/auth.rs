@@ -129,33 +129,28 @@ pub async fn login_handler(
     } else {
         warn!("Failed login attempt from {}", ip);
 
-        let stats = get_stats(&state).await;
-        let new_count = stats.as_ref().map(|s| s.failed_attempts + 1).unwrap_or(1);
+        let new_count = sqlx::query_scalar::<_, i32>(
+            "UPDATE login_stats SET failed_attempts = failed_attempts + 1 WHERE id = 1 RETURNING failed_attempts"
+        )
+        .fetch_one(&state.pool)
+        .await
+        .unwrap_or(1);
 
-        // Increment counter
-        sqlx::query("UPDATE login_stats SET failed_attempts = failed_attempts + 1 WHERE id = 1")
-            .execute(&state.pool)
-            .await
-            .ok();
-
-        // Check cooldown
-        let should_email = stats
-            .map(|s| {
-                s.last_failed_email_sent_at
-                    .map(|t| {
-                        Utc::now().signed_duration_since(t).num_seconds()
-                            > FAILED_EMAIL_COOLDOWN_SECS
-                    })
-                    .unwrap_or(true) // never sent before
-            })
-            .unwrap_or(true);
+        // This atomically updates the cooldown, so even if thousands of request arrive at once, they only send a single email
+        let should_email = sqlx::query_scalar::<_, i32>(
+            "UPDATE login_stats 
+             SET last_failed_email_sent_at = NOW() 
+             WHERE id = 1 AND (last_failed_email_sent_at IS NULL OR EXTRACT(EPOCH FROM (NOW() - last_failed_email_sent_at)) > $1)
+             RETURNING id"
+        )
+        .bind(FAILED_EMAIL_COOLDOWN_SECS)
+        .fetch_optional(&state.pool)
+        .await
+        .ok()
+        .flatten()
+        .is_some();
 
         if should_email {
-            sqlx::query("UPDATE login_stats SET last_failed_email_sent_at = NOW() WHERE id = 1")
-                .execute(&state.pool)
-                .await
-                .ok();
-
             let mail = state.mail.clone();
             tokio::spawn(async move {
                 warn!("Sending email notification of failed login");
