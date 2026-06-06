@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tatjam's station</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/htmx.org@2.0.8/dist/htmx.min.js"></script>
+</head>
+
+<body>
+<main class="container">
+    <nav>
+        <ul>
+            <li><a href="/inventory">Inventory</a></li>
+            <li><a href="#"><strong>Vault</strong></a></li>
+        </ul>
+        <ul>
+        <li><a hx-post="/logout">Logout</a></li>
+        </ul>
+    </nav>
+
+    <article>
+        <div id="loading" class="htmx-indicator">
+          <article aria-busy="true">Loading results...</article>
+        </div>
+        <div class="overflow-auto">
+            <table class="striped" id="results"
+            hx-get="/api/vault/list"
+            hx-trigger="load"
+            hx-target="this"
+            hx-swap="innerHTML"
+            hx-indicator="#loading"
+            >
+            </table>
+        </div>
+    </article>
+</main>
+</body>
+</html>
+

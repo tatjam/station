@@ -77,3 +77,8 @@ LEFT JOIN stock s ON p.id = s.part_id
 LEFT JOIN locations l ON s.location_id = l.id
 LEFT JOIN categories c ON p.category_id = c.id
 LEFT JOIN footprints f ON p.footprint_id = f.id;
+
+CREATE TABLE vault (
+    name TEXT PRIMARY KEY,
+    data BYTEA NOT NULL
+);

@@ -4,6 +4,7 @@
 mod auth;
 mod inventory;
 mod state;
+mod vault;
 
 use axum::{
     Router,
@@ -20,6 +21,7 @@ use crate::state::AppState;
 
 const LOGIN_HTML: &str = include_str!("../res/login.html");
 const INVENTORY_HTML: &str = include_str!("../res/inventory.html");
+const VAULT_HTML: &str = include_str!("../res/vault.html");
 const STYLE_CSS: &str = include_str!("../res/style.css");
 
 #[tokio::main]
@@ -43,6 +45,9 @@ async fn main() {
         .route("/style.css", get(|| css_file(STYLE_CSS)));
 
     let auth_routes = Router::new()
+        .route("/vault", get(|| html_page(VAULT_HTML)))
+        .route("/api/vault/list", get(vault::list))
+        .route("/api/vault/download/{id}", get(vault::download))
         .route("/inventory", get(|| html_page(INVENTORY_HTML)))
         .route("/logout", post(auth::logout_handler))
         .route("/api/inventory/search", get(inventory::search_handler))
