@@ -1,8 +1,7 @@
 use std::fmt::Display;
 
 use axum::{
-    body::Bytes,
-    extract::{Path, State},
+    extract::{Multipart, Path, State},
     http::header,
     response::{Html, IntoResponse},
 };
@@ -96,11 +95,39 @@ pub async fn download(State(state): State<AppState>, Path(id): Path<String>) -> 
         .into_response()
 }
 
-pub async fn upload(
-    State(state): State<AppState>,
-    Path(id): Path<String>,
-    body: Bytes,
-) -> impl IntoResponse {
+pub async fn upload(State(state): State<AppState>, mut multipart: Multipart) -> impl IntoResponse {
+    let field_maybe = match multipart.next_field().await {
+        Ok(field_maybe) => field_maybe,
+        Err(e) => {
+            return handle_generic_vault_error(e).into_response();
+        }
+    };
+
+    let field = match field_maybe {
+        Some(field) => field,
+        None => {
+            return handle_generic_vault_error("Field not received").into_response();
+        }
+    };
+
+    if field.name().unwrap_or_default() != "file" {
+        return handle_generic_vault_error("Invalid field received").into_response();
+    }
+
+    let id = match field.file_name() {
+        Some(file_name) => file_name.to_string(),
+        None => {
+            return handle_generic_vault_error("Missing file name field").into_response();
+        }
+    };
+
+    let file_bytes = match field.bytes().await {
+        Ok(bytes) => bytes,
+        Err(e) => {
+            return handle_generic_vault_error(e).into_response();
+        }
+    };
+
     info!("Performing vault upload for {}", id);
 
     let mut db_conn = match state.pool.acquire().await {
@@ -113,7 +140,7 @@ pub async fn upload(
     let mut query = QueryBuilder::new("INSERT INTO vault (name, data) VALUES (");
     query.push_bind(&id);
     query.push(", ");
-    query.push_bind(body.as_ref());
+    query.push_bind(file_bytes.as_ref());
     query.push(") ON CONFLICT (name) DO UPDATE SET data = EXCLUDED.data, modified_at = NOW()");
 
     if let Err(e) = query.build().execute(db_conn.as_mut()).await {

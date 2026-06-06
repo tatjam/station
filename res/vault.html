@@ -46,9 +46,12 @@
 <script>
 async function uploadFile() {
     const file = document.getElementById('fileInput').files[0];
-    const result = await fetch(`/api/vault/upload/${encodeURIComponent(file.name)}`, {
+    const formData = new FormData();
+    formData.append('file', file, file.name)
+    
+    const result = await fetch(`/api/vault/upload/`, {
         method: 'POST',
-        body: file
+        body: formData
     });
     document.getElementById('uploadResult').innerText = await result.text();
     htmx.ajax('GET', '/api/vault/list', '#results');

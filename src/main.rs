@@ -52,7 +52,7 @@ async fn main() {
         .route("/api/vault/list", get(vault::list))
         .route("/api/vault/download/{id}", get(vault::download))
         .route(
-            "/api/vault/upload/{id}",
+            "/api/vault/upload",
             post(vault::upload).layer(DefaultBodyLimit::disable()),
         )
         .route("/inventory", get(|| html_page(INVENTORY_HTML)))
