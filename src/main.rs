@@ -10,14 +10,13 @@ mod vault;
 use std::net::SocketAddr;
 
 use axum::{
-    Router, ServiceExt,
+    Router,
     extract::DefaultBodyLimit,
     http::header,
     middleware::{self},
     response::{Html, IntoResponse, Redirect},
     routing::{get, post},
 };
-use dotenvy;
 use tower_sessions::Session;
 use tracing::info;
 

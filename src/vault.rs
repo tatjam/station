@@ -20,14 +20,14 @@ struct VaultEntry {
 
 pub fn handle_generic_vault_error<E: Display>(e: E) -> Html<String> {
     error!("Error while processing vault API call: {}", e);
-    return Html(
+    Html(
         html! {
             article {
                 "Error while processing, try again later."
             }
         }
         .into_string(),
-    );
+    )
 }
 
 pub async fn list(State(state): State<AppState>) -> impl IntoResponse {

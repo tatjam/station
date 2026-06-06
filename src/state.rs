@@ -1,4 +1,3 @@
-use lettre::{SmtpTransport, transport::smtp::authentication::Credentials};
 use sqlx::{Pool, Postgres, postgres::PgPoolOptions};
 use tower_sessions::{ExpiredDeletion, Expiry, SessionManagerLayer, cookie::time::Duration};
 use tower_sessions_sqlx_store::PostgresStore;
@@ -15,13 +14,12 @@ pub struct AppState {
 
 impl AppState {
     pub async fn setup_session_store(&self) -> SessionManagerLayer<PostgresStore> {
-        let allow_insecure = match dotenvy::var("ALLOW_UNSECURE_COOKIE")
-            .unwrap_or(String::from("false"))
-            .as_str()
-        {
-            "true" => true,
-            _ => false,
-        };
+        let allow_insecure = matches!(
+            dotenvy::var("ALLOW_UNSECURE_COOKIE")
+                .unwrap_or(String::from("false"))
+                .as_str(),
+            "true"
+        );
 
         let session_store = PostgresStore::new(self.pool.clone());
 

@@ -11,9 +11,9 @@ use serde::Deserialize;
 use sqlx::{Postgres, QueryBuilder, pool::PoolConnection};
 use tracing::{error, info};
 
-const ALL_CATEGORIES_STR: &'static str = "All Categories";
-const ALL_FOOTPRINTS_STR: &'static str = "All Footprints";
-const NO_FOOTPRINT_STR: &'static str = "No Footprint";
+const ALL_CATEGORIES_STR: &str = "All Categories";
+const ALL_FOOTPRINTS_STR: &str = "All Footprints";
+const NO_FOOTPRINT_STR: &str = "No Footprint";
 
 #[derive(Debug, Deserialize)]
 pub struct SearchForm {
@@ -51,17 +51,17 @@ use crate::state::AppState;
 
 pub fn handle_generic_inventory_error<E: Display>(e: E) -> Html<String> {
     error!("Error while processing inventory API call: {}", e);
-    return Html(
+    Html(
         html! {
             article {
                 "Error while processing, try again later."
             }
         }
         .into_string(),
-    );
+    )
 }
 
-fn parse_multiple_value(v: &String) -> Option<f32> {
+fn parse_multiple_value(v: &str) -> Option<f32> {
     let number_end = v.rfind(|x: char| x.is_ascii_digit())?;
     if number_end + 1 >= v.len() {
         return v.parse::<f32>().ok();
@@ -112,18 +112,18 @@ async fn query_inventory(
         query.push(" AND staged > 0");
     }
 
-    if !search.min_val.is_empty() {
-        if let Some(min) = parse_multiple_value(&search.min_val) {
-            query.push(" AND value >= ");
-            query.push_bind(min);
-        }
+    if !search.min_val.is_empty()
+        && let Some(min) = parse_multiple_value(&search.min_val)
+    {
+        query.push(" AND value >= ");
+        query.push_bind(min);
     }
 
-    if !search.max_val.is_empty() {
-        if let Some(max) = parse_multiple_value(&search.max_val) {
-            query.push(" AND value <= ");
-            query.push_bind(max);
-        }
+    if !search.max_val.is_empty()
+        && let Some(max) = parse_multiple_value(&search.max_val)
+    {
+        query.push(" AND value <= ");
+        query.push_bind(max);
     }
 
     if !search.search.is_empty() {
@@ -184,8 +184,9 @@ fn format_mult_value(value: f32) -> String {
         format!("{:.2} G", value * 1e-9)
     }
 }
-fn format_value(category: &String, value: f32) -> String {
-    let (unit, mult) = match category.as_str() {
+
+fn format_value(category: &str, value: f32) -> String {
+    let (unit, mult) = match category {
         "CapCeramic" => ("F", true),
         "CapElectro" => ("F", true),
         "Resistor" => ("Ω", true),
@@ -422,7 +423,7 @@ pub async fn download_backup_handler() -> impl IntoResponse {
     info!("Generating database backup");
     let output = tokio::process::Command::new("pg_dump")
         .env("PGPASSWORD", dotenvy::var("DB_PASSWORD").unwrap().as_str())
-        .args(&[
+        .args([
             "-h",
             dotenvy::var("DB_HOST").unwrap().as_str(),
             "-U",
@@ -537,7 +538,7 @@ pub fn html_table_header(sort: &String) -> Markup {
 }
 
 pub fn html_table_row(result: &InventoryItem) -> Markup {
-    const STAGING_BUTTON_STYLE: &'static str =
+    const STAGING_BUTTON_STYLE: &str =
         "padding: 0rem; width: 1.5rem; height: 1.5rem; vertical-align: middle;";
 
     html!(
