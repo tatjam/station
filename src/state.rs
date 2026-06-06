@@ -21,6 +21,8 @@ impl AppState {
             "true"
         );
 
+        let secure = !allow_insecure;
+
         let session_store = PostgresStore::new(self.pool.clone());
 
         info!("Migrating session store DB");
@@ -37,7 +39,7 @@ impl AppState {
         );
 
         SessionManagerLayer::new(session_store)
-            .with_secure(allow_insecure)
+            .with_secure(secure)
             .with_same_site(tower_sessions::cookie::SameSite::Lax)
             .with_expiry(Expiry::OnInactivity(Duration::seconds(60 * 60 * 24 * 7)))
             .with_name("station_session")
