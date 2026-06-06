@@ -50,6 +50,7 @@ pub async fn login_handler(
         .is_ok();
 
     if pass_valid {
+        session.cycle_id().await.unwrap();
         session.insert(AUTH_SESSION_NAME, true).await.unwrap();
         let mut headers = axum::http::HeaderMap::new();
         headers.insert("HX-Redirect", "/inventory".parse().unwrap());
