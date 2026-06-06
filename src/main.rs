@@ -8,6 +8,7 @@ mod vault;
 
 use axum::{
     Router,
+    extract::DefaultBodyLimit,
     http::header,
     middleware::{self},
     response::{Html, IntoResponse, Redirect},
@@ -48,6 +49,10 @@ async fn main() {
         .route("/vault", get(|| html_page(VAULT_HTML)))
         .route("/api/vault/list", get(vault::list))
         .route("/api/vault/download/{id}", get(vault::download))
+        .route(
+            "/api/vault/upload/{id}",
+            post(vault::upload).layer(DefaultBodyLimit::disable()),
+        )
         .route("/inventory", get(|| html_page(INVENTORY_HTML)))
         .route("/logout", post(auth::logout_handler))
         .route("/api/inventory/search", get(inventory::search_handler))

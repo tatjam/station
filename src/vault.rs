@@ -1,17 +1,22 @@
-use std::{fmt::Display, str::from_utf8};
+use std::fmt::Display;
 
 use axum::{
-    Form,
+    body::Bytes,
     extract::{Path, State},
-    http::{HeaderMap, header},
+    http::header,
     response::{Html, IntoResponse},
 };
 use maud::{Markup, html};
-use serde::Deserialize;
-use sqlx::{Postgres, QueryBuilder, pool::PoolConnection};
+use sqlx::QueryBuilder;
 use tracing::{error, info};
 
 use crate::state::AppState;
+
+#[derive(sqlx::FromRow)]
+struct VaultEntry {
+    name: String,
+    modified_at: chrono::NaiveDateTime,
+}
 
 pub fn handle_generic_vault_error<E: Display>(e: E) -> Html<String> {
     error!("Error while processing vault API call: {}", e);
@@ -35,22 +40,18 @@ pub async fn list(State(state): State<AppState>) -> impl IntoResponse {
         }
     };
 
-    let mut query = QueryBuilder::new("SELECT name FROM vault");
-    let results = match query
-        .build_query_scalar::<String>()
+    let results = match sqlx::query_as::<_, VaultEntry>("SELECT name, modified_at FROM vault")
         .fetch_all(db_conn.as_mut())
         .await
     {
-        Ok(results) => results,
-        Err(e) => {
-            return handle_generic_vault_error(e);
-        }
+        Ok(rows) => rows,
+        Err(e) => return handle_generic_vault_error(e),
     };
 
     let response = html! {
         table class="striped" {
             @for result in &results {
-                (html_table_row(result))
+                (html_table_row(&result.name, result.modified_at))
             }
         }
     }
@@ -95,10 +96,43 @@ pub async fn download(State(state): State<AppState>, Path(id): Path<String>) -> 
         .into_response()
 }
 
-pub fn html_table_row(result: &str) -> Markup {
+pub async fn upload(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+    body: Bytes,
+) -> impl IntoResponse {
+    info!("Performing vault upload for {}", id);
+
+    let mut db_conn = match state.pool.acquire().await {
+        Ok(conn) => conn,
+        Err(e) => {
+            return handle_generic_vault_error(e).into_response();
+        }
+    };
+
+    let mut query = QueryBuilder::new("INSERT INTO vault (name, data) VALUES (");
+    query.push_bind(&id);
+    query.push(", ");
+    query.push_bind(body.as_ref());
+    query.push(") ON CONFLICT (name) DO UPDATE SET data = EXCLUDED.data, modified_at = NOW()");
+
+    if let Err(e) = query.build().execute(db_conn.as_mut()).await {
+        return handle_generic_vault_error(e).into_response();
+    }
+
+    let response = html! {
+        "Successfully uploaded"
+    }
+    .into_string();
+
+    Html(response).into_response()
+}
+
+pub fn html_table_row(result: &str, modified_at: chrono::NaiveDateTime) -> Markup {
     html! {
         tr {
             th scope="row" { (result) }
+            td { (modified_at.format("%Y-%m-%d %H:%M:%S").to_string()) }
             td {
                 a href={"/api/vault/download/" (result)} download style="display: contents;"
                 {

@@ -22,6 +22,12 @@
     </nav>
 
     <article>
+        <div id="upload-form">
+            <input type="file" id="fileInput">
+            <button onclick="uploadFile()">Upload</button>
+            <span id="uploadResult"></span>
+        </div>
+
         <div id="loading" class="htmx-indicator">
           <article aria-busy="true">Loading results...</article>
         </div>
@@ -37,6 +43,17 @@
         </div>
     </article>
 </main>
+<script>
+async function uploadFile() {
+    const file = document.getElementById('fileInput').files[0];
+    const result = await fetch(`/api/vault/upload/${encodeURIComponent(file.name)}`, {
+        method: 'POST',
+        body: file
+    });
+    document.getElementById('uploadResult').innerText = await result.text();
+    htmx.ajax('GET', '/api/vault/list', '#results');
+}
+</script>
 </body>
 </html>
 

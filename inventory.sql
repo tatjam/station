@@ -80,5 +80,6 @@ LEFT JOIN footprints f ON p.footprint_id = f.id;
 
 CREATE TABLE vault (
     name TEXT PRIMARY KEY,
-    data BYTEA NOT NULL
+    data BYTEA NOT NULL,
+    modified_at TIMESTAMP DEFAULT NOW()
 );
