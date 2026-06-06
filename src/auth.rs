@@ -30,8 +30,9 @@ struct LoginStats {
 }
 
 fn get_real_ip(headers: &HeaderMap, addr: SocketAddr) -> String {
+    // X-Real-IP is used by alwaysdata, other reverse proxies may use other values!
     headers
-        .get("X-Forwarded-For")
+        .get("X-Real-IP")
         .and_then(|v| v.to_str().ok())
         .and_then(|s| s.split(',').next())
         .map(|s| s.trim().to_string())
