@@ -2,19 +2,51 @@ use crate::state::AppState;
 use argon2::{Argon2, PasswordHash, PasswordVerifier};
 use axum::{
     Form,
-    extract::{Request, State},
+    extract::{ConnectInfo, Request, State},
+    http::HeaderMap,
     middleware::Next,
     response::{IntoResponse, Redirect},
 };
+use chrono::Utc;
 use maud::html;
 use serde::Deserialize;
+use std::net::SocketAddr;
 use tower_sessions::Session;
+use tracing::{info, warn};
 
-const AUTH_SESSION_NAME: &'static str = "auth";
+const AUTH_SESSION_NAME: &str = "auth";
+const FAILED_EMAIL_COOLDOWN_SECS: i64 = 86400;
 
 #[derive(Deserialize)]
 pub struct LoginCredentials {
     pub password: String,
+}
+
+#[derive(sqlx::FromRow)]
+struct LoginStats {
+    failed_attempts: i32,
+    last_failed_email_sent_at: Option<chrono::DateTime<Utc>>,
+    last_reset_at: Option<chrono::DateTime<Utc>>,
+}
+
+fn get_real_ip(headers: &HeaderMap, addr: SocketAddr) -> String {
+    headers
+        .get("X-Forwarded-For")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|s| s.split(',').next())
+        .map(|s| s.trim().to_string())
+        .unwrap_or_else(|| addr.ip().to_string())
+}
+
+async fn get_stats(state: &AppState) -> Option<LoginStats> {
+    sqlx::query_as::<_, LoginStats>(
+        "SELECT failed_attempts, last_failed_email_sent_at, last_reset_at 
+         FROM login_stats WHERE id = 1",
+    )
+    .fetch_one(&state.pool)
+    .await
+    .map_err(|e| tracing::error!("Failed to get login stats: {}", e))
+    .ok()
 }
 
 pub async fn auth_guard(session: Session, request: Request, next: Next) -> impl IntoResponse {
@@ -41,9 +73,12 @@ pub async fn is_auth(session: Session) -> bool {
 
 pub async fn login_handler(
     State(state): State<AppState>,
+    ConnectInfo(addr): ConnectInfo<SocketAddr>,
+    headers: HeaderMap,
     session: Session,
     Form(creds): Form<LoginCredentials>,
 ) -> impl IntoResponse {
+    let ip = get_real_ip(&headers, addr);
     let true_pass = PasswordHash::new(state.password_hash.as_str()).unwrap();
     let pass_valid = Argon2::default()
         .verify_password(creds.password.as_bytes(), &true_pass)
@@ -52,17 +87,99 @@ pub async fn login_handler(
     if pass_valid {
         session.cycle_id().await.unwrap();
         session.insert(AUTH_SESSION_NAME, true).await.unwrap();
-        let mut headers = axum::http::HeaderMap::new();
-        headers.insert("HX-Redirect", "/inventory".parse().unwrap());
-        (headers, "").into_response()
+        info!("Successful login from {}", ip);
+
+        // Grab stats before reset for the email
+        let stats = get_stats(&state).await;
+
+        // Reset failed attempts
+        sqlx::query(
+            "UPDATE login_stats SET failed_attempts = 0, last_reset_at = NOW() WHERE id = 1",
+        )
+        .execute(&state.pool)
+        .await
+        .ok();
+
+        // Send email in background
+        let mail = state.mail.clone();
+        tokio::spawn(async move {
+            info!("Sending email notification of new login");
+            let failed_since = stats.as_ref().map(|s| s.failed_attempts).unwrap_or(0);
+            let last_login = stats
+                .as_ref()
+                .and_then(|s| s.last_reset_at)
+                .map(|t| t.format("%Y-%m-%d %H:%M:%S UTC").to_string())
+                .unwrap_or_else(|| "never".to_string());
+
+            mail.send(
+                "New login to station detected",
+                format!(
+                    "New successful login at {} UTC from IP {}.\n\nFailed attempts since last login ({}): {}",
+                    Utc::now().format("%Y-%m-%d %H:%M:%S"),
+                    ip,
+                    last_login,
+                    failed_since
+                ),
+            );
+        });
+
+        let mut resp_headers = axum::http::HeaderMap::new();
+        resp_headers.insert("HX-Redirect", "/inventory".parse().unwrap());
+        (resp_headers, "").into_response()
     } else {
-        return html!({
+        warn!("Failed login attempt from {}", ip);
+
+        let stats = get_stats(&state).await;
+        let new_count = stats.as_ref().map(|s| s.failed_attempts + 1).unwrap_or(1);
+
+        // Increment counter
+        sqlx::query("UPDATE login_stats SET failed_attempts = failed_attempts + 1 WHERE id = 1")
+            .execute(&state.pool)
+            .await
+            .ok();
+
+        // Check cooldown
+        let should_email = stats
+            .map(|s| {
+                s.last_failed_email_sent_at
+                    .map(|t| {
+                        Utc::now().signed_duration_since(t).num_seconds()
+                            > FAILED_EMAIL_COOLDOWN_SECS
+                    })
+                    .unwrap_or(true) // never sent before
+            })
+            .unwrap_or(true);
+
+        if should_email {
+            sqlx::query("UPDATE login_stats SET last_failed_email_sent_at = NOW() WHERE id = 1")
+                .execute(&state.pool)
+                .await
+                .ok();
+
+            let mail = state.mail.clone();
+            tokio::spawn(async move {
+                warn!("Sending email notification of failed login");
+                mail.send(
+                    "Failed login attempt on station",
+                    format!(
+                        "Failed login attempt at {} UTC from IP {}.\n\nTotal failed attempts since last successful login: {}",
+                        Utc::now().format("%Y-%m-%d %H:%M:%S"),
+                        ip,
+                        new_count
+                    ),
+                );
+            });
+        } else {
+            warn!("Skipping sending email notification of failed login");
+        }
+
+        html!({
             div.alert.alert-danger role="alert" style="color: red; margin-top: 10px;" {
                 strong { "You shall not pass!" }
             }
         })
         .into_string()
-        .into_response();
+        .into_response()
     }
 }
 

@@ -3,11 +3,14 @@
 
 mod auth;
 mod inventory;
+mod mail;
 mod state;
 mod vault;
 
+use std::net::SocketAddr;
+
 use axum::{
-    Router,
+    Router, ServiceExt,
     extract::DefaultBodyLimit,
     http::header,
     middleware::{self},
@@ -95,7 +98,12 @@ async fn main() {
 
     info!("Listening on {}", listener.local_addr().unwrap());
 
-    axum::serve(listener, app).await.unwrap();
+    axum::serve(
+        listener,
+        app.into_make_service_with_connect_info::<SocketAddr>(),
+    )
+    .await
+    .unwrap();
 }
 
 async fn home_page(session: Session) -> impl IntoResponse {

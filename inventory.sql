@@ -83,3 +83,12 @@ CREATE TABLE vault (
     data BYTEA NOT NULL,
     modified_at TIMESTAMP DEFAULT NOW()
 );
+
+CREATE TABLE login_stats (
+    id INT PRIMARY KEY DEFAULT 1,
+    failed_attempts INT DEFAULT 0,
+    last_failed_email_sent_at TIMESTAMPTZ,
+    last_reset_at TIMESTAMPTZ
+);
+
+INSERT INTO login_stats (id) VALUES (1);

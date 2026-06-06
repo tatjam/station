@@ -1,12 +1,16 @@
+use lettre::{SmtpTransport, transport::smtp::authentication::Credentials};
 use sqlx::{Pool, Postgres, postgres::PgPoolOptions};
 use tower_sessions::{ExpiredDeletion, Expiry, SessionManagerLayer, cookie::time::Duration};
 use tower_sessions_sqlx_store::PostgresStore;
 use tracing::info;
 
+use crate::mail::MailConfig;
+
 #[derive(Clone)]
 pub struct AppState {
     pub password_hash: String,
     pub pool: Pool<Postgres>,
+    pub mail: MailConfig,
 }
 
 impl AppState {
@@ -64,9 +68,12 @@ impl AppState {
 
         let password_hash = dotenvy::var("LOGIN_PASSWORD").unwrap();
 
+        let mail = MailConfig::new();
+
         AppState {
             pool,
             password_hash,
+            mail,
         }
     }
 }
