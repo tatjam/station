@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 mod auth;
+mod chisel;
 mod inventory;
 mod mail;
 mod state;
@@ -45,7 +46,8 @@ async fn main() {
             "/login",
             get(|| html_page(LOGIN_HTML)).post(auth::login_handler),
         )
-        .route("/style.css", get(|| css_file(STYLE_CSS)));
+        .route("/style.css", get(|| css_file(STYLE_CSS)))
+        .nest("/tunnel", chisel::router());
 
     let auth_routes = Router::new()
         .route("/vault", get(|| html_page(VAULT_HTML)))
