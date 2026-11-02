@@ -3,6 +3,7 @@ use tower_sessions::{ExpiredDeletion, Expiry, SessionManagerLayer, cookie::time:
 use tower_sessions_sqlx_store::PostgresStore;
 use tracing::info;
 
+use crate::chisel::ChiselConfig;
 use crate::mail::MailConfig;
 
 #[derive(Clone)]
@@ -10,6 +11,7 @@ pub struct AppState {
     pub password_hash: String,
     pub pool: Pool<Postgres>,
     pub mail: MailConfig,
+    pub chisel: ChiselConfig,
 }
 
 impl AppState {
@@ -69,11 +71,13 @@ impl AppState {
         let password_hash = dotenvy::var("LOGIN_PASSWORD").unwrap();
 
         let mail = MailConfig::new();
+        let chisel = ChiselConfig::new().await;
 
         AppState {
             pool,
             password_hash,
             mail,
+            chisel,
         }
     }
 }

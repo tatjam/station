@@ -1,10 +1,10 @@
-use std::sync::OnceLock;
+use std::sync::Arc;
 
 use axum::{
     Router,
     body::Body,
-    extract::{DefaultBodyLimit, Request},
-    http::{StatusCode, header},
+    extract::{DefaultBodyLimit, Request, State},
+    http::{StatusCode, Uri, header},
     response::{IntoResponse, Response},
     routing::any,
 };
@@ -12,11 +12,75 @@ use hyper_util::{
     client::legacy::{Client, connect::HttpConnector},
     rt::{TokioExecutor, TokioIo},
 };
+use tokio::{
+    process::{Child, Command},
+    sync::Mutex,
+};
+use tracing::warn;
 
 use crate::state::AppState;
 
-static CLIENT: OnceLock<Client<HttpConnector, Body>> = OnceLock::new();
-static BACKEND: OnceLock<String> = OnceLock::new();
+#[derive(Clone)]
+pub struct ChiselConfig {
+    url: String,
+    client: Client<HttpConnector, Body>,
+    proc: Arc<Mutex<Child>>,
+}
+
+impl ChiselConfig {
+    pub async fn start_chisel() -> Result<Child, std::io::Error> {
+        let cmd = dotenvy::var("CHISEL_CMD").unwrap();
+
+        let key = dotenvy::var("CHISEL_KEY").unwrap();
+
+        let port = dotenvy::var("CHISEL_PORT")
+            .unwrap()
+            .parse::<u16>()
+            .expect("Invalid CHISEL_PORT");
+
+        let auth_file = dotenvy::var("CHISEL_AUTHFILE").unwrap();
+
+        let mut cmd = Command::new(cmd);
+        cmd.args([
+            "server",
+            "--socks5",
+            "--host",
+            "127.0.0.1",
+            "--port",
+            &port.to_string(),
+            "--keyfile",
+            &key,
+            "--authfile",
+            &auth_file,
+        ]);
+
+        cmd.spawn()
+    }
+
+    pub async fn new() -> Self {
+        let client = Client::builder(TokioExecutor::new()).build_http();
+        let url = dotenvy::var("CHISEL_URL").unwrap();
+        url.parse::<Uri>().expect("Invalid CHISEL_URL");
+
+        ChiselConfig {
+            url,
+            client,
+            proc: Arc::new(Mutex::new(Self::start_chisel().await.unwrap())),
+        }
+    }
+
+    pub async fn start_chisel_if_stopped(self: &ChiselConfig) {
+        let mut handle = self.proc.clone().lock_owned().await;
+        if handle.try_wait().is_ok_and(|f| f.is_none()) {
+            return;
+        }
+        warn!("Chisel was killed, restarting");
+        match Self::start_chisel().await {
+            Ok(child) => *handle = child,
+            Err(e) => warn!("Failed to restart chisel: {e}"),
+        }
+    }
+}
 
 pub fn router() -> Router<AppState> {
     Router::new()
@@ -24,15 +88,7 @@ pub fn router() -> Router<AppState> {
         .layer(DefaultBodyLimit::disable())
 }
 
-fn client() -> &'static Client<HttpConnector, Body> {
-    CLIENT.get_or_init(|| Client::builder(TokioExecutor::new()).build_http())
-}
-
-fn backend() -> &'static str {
-    BACKEND.get_or_init(|| dotenvy::var("CHISEL_URL").unwrap())
-}
-
-async fn proxy(mut req: Request) -> Response {
+async fn proxy(State(state): State<AppState>, mut req: Request) -> Response {
     let upgrade = hyper::upgrade::on(&mut req);
 
     let path = req
@@ -40,11 +96,13 @@ async fn proxy(mut req: Request) -> Response {
         .path_and_query()
         .map(|pq| pq.as_str())
         .unwrap_or("/");
-    let uri = format!("{}{}", backend().trim_end_matches('/'), path);
+    let uri = format!("{}{}", state.chisel.url.trim_end_matches('/'), path);
     *req.uri_mut() = uri.parse().expect("Invalid CHISEL_URL");
     req.headers_mut().remove(header::HOST);
 
-    match client().request(req).await {
+    state.chisel.start_chisel_if_stopped().await;
+
+    match state.chisel.client.request(req).await {
         Ok(mut res) => {
             if res.status() == StatusCode::SWITCHING_PROTOCOLS {
                 let backend_upgrade = hyper::upgrade::on(&mut res);
